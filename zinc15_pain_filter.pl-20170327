@@ -1,0 +1,24 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+my $linecount;
+my @wc;
+my @datasets=`ls *.smiles`;
+chomp(@datasets);
+foreach my $dataset(@datasets){
+    @wc=split(/\s+/,`wc $dataset`);
+    if ($wc[1] > 1000){
+	system("split -l 1000 $dataset $dataset.");
+	my @subsets=`ls $dataset.*`;
+	chomp(@subsets);
+	foreach my $subset(@subsets){
+#           print "curl http://zinc15.docking.org/patterns/apps/checker/ -F upload=\@$subset -F pains=y -F aggregators=y -F output_format=csv | tee $subset.result";
+	    system("curl http://zinc15.docking.org/patterns/apps/checker/ -F upload=\@$subset -F pains=y -F aggregators=y -F output_format=csv | tee $subset.result");
+	}
+    } else {
+#	print"curl http://zinc15.docking.org/patterns/apps/checker/ -F upload=\@$dataset -F pains=y -F aggregators=y -F output_format=csv |tee $dataset.result";
+	system("curl http://zinc15.docking.org/patterns/apps/checker/ -F upload=\@$dataset -F pains=y -F aggregators=y -F output_format=csv | tee $dataset.result");
+#    print "@wc";
+#    print "$linecount\n";
+    }
+}

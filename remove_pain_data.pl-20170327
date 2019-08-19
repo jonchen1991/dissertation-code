@@ -1,0 +1,26 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+@ARGV==1||die "USAGE: remove_pain_data.pl <datafile> \n\n"; 
+system("cat *.PAINS>remove_pain_list");
+open(LIST,"<remove_pain_list");
+my %pains;
+my @data;
+while(my $cid=<LIST>){
+    chomp($cid);
+    $pains{$cid}=1; 
+}
+close(LIST);
+open(RAW,"<$ARGV[0]");
+open(CLEAN,">activity.list");
+FILTER: while(my $line=<RAW>){
+    chomp($line);
+#    next FILTER if ($line eq "PUBCHEM_SID,IC50_Mean(uM)");
+    next if ($line =~ /[[:alpha:]]/);
+    @data=split(/,/,$line);
+    next FILTER if exists ($pains{$data[0]});
+    print CLEAN "@data\n";
+}
+close(RAW);
+close(CLEAN)

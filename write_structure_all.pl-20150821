@@ -1,0 +1,27 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# Author: Jonathan Jun Feng Chen
+# Description: Writes bash script that starts all perl structure filters in parallel
+
+# Change log: 08/06/2015: Creation.
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+my $parallel_path="/home/visco/jjc/parallel";
+my $root_path="/home/visco/jjc/admixture";
+my $output_path="$root_path/structures";
+my $matrix_path="$root_path/fort.25_str1.5_shrink28d0.5_3240onward";
+my $initials="jc";
+my $database_path="$root_path/trainingset/HCdatabase1";
+my $max_itt=4000;
+my $starting_set=0;
+my $ending_set=31;
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+open(BASH,">bash_structure_all");
+print BASH "#!/usr/bin/env bash\n";
+for my $i ($starting_set..$ending_set){
+    print BASH "nohup taskset -c $i $parallel_path/perl-structure-filter$i $i $output_path/ $matrix_path$i $initials $database_path $max_itt > $output_path/nohup.$i &\n";
+}
+close(BASH);
+system("chmod +x bash_structure_all");

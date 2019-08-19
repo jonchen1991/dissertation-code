@@ -1,0 +1,52 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+@ARGV==3||die "\n\nusage: ./results_screening.pl <processed_screening_results_directory> <SVM_floor> <SVR_ceiling>\n\n";
+my $svm_path="$ARGV[0]/filtered_svm";
+my $svr_path="$ARGV[0]/filtered_svr";
+my $filtered_screen_path="$ARGV[0]/filtered_screen";
+open(SVM,"<$svm_path");
+open(FILTERED_SCREEN,">$filtered_screen_path");
+print FILTERED_SCREEN "#cid SVM-C log(IC50)\n";
+my %SVM;
+my @svm_data;
+my @svr_data;
+my $GREP;
+my $cid;
+my @cid_list;
+FILTER:while(my $line=<SVM>){
+    chomp($line);
+    @svm_data=split(/\s/,$line);
+    SVM_MIN:foreach my $svm_pred (@svm_data){
+	next SVM_MIN if (index($svm_pred,"#") ==0);
+	next FILTER if ($svm_pred lt $ARGV[1]);
+    }
+    $GREP=`grep \"$svm_data[0]\" $svr_path`;
+    chomp($GREP);
+    @svr_data=split(/\s/,$GREP);
+    if ($svr_data[1] lt $ARGV[2]){
+	print FILTERED_SCREEN "$line $svr_data[1]\n";
+	$cid = $svm_data[0];
+	$cid=~ s/#//; 
+	push(@cid_list, $cid);
+    }
+}
+my $cid_string=join(",",@cid_list);
+#print "$cid_string\n";
+system("curl https://pubchem.ncbi.nlm.nih.gov/pc_fetch/pc_fetch.cgi -F db=pccompound -F idinput=fromstring -F idstr=$cid_string -F retmode=sdf>curl.out");
+my $curl_status=`grep "queue status" curl.out`;
+my $reqid=`grep "document.location.replace" curl.out`;
+($reqid) = $reqid =~ /\"(.*)\"/; 
+print "request ID: $reqid\n";
+while(index($curl_status,"Done") == -1){
+    sleep(5);
+    system("curl https://pubchem.ncbi.nlm.nih.gov/pc_fetch/$reqid>curl.out");
+    $curl_status=`grep "queue status" curl.out`;
+}
+my $ftp_url=`grep "document.location.replace" curl.out`;
+($ftp_url) = $ftp_url =~ /\"(.*)\"/;
+print "FTP url: $ftp_url\n";
+system("wget $ftp_url -O screen_actives.sdf.gz");
+system("gunzip screen_actives.sdf.gz");
+#system("wget https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/$cid_string/SDF");

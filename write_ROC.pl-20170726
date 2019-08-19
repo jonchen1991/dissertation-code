@@ -1,0 +1,55 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+#open ROC_plot_all.R
+open(SCRIPT,">ROC_plot_all.R");
+print SCRIPT "#!/usr/bin/env Rscript\n\n";
+print SCRIPT "library(GA)\n";
+print SCRIPT "library(kernlab)\n";
+print SCRIPT "library(ROCR)\n\n";
+
+#get pwd path for sourcing
+my $path=`pwd`;
+chomp($path);
+print SCRIPT "# Read in data\n";
+print SCRIPT "height0 <- read.table(\"$path/trainingset/HCdesmatrix-int0\")\n";
+print SCRIPT "height1 <- read.table(\"$path/trainingset/HCdesmatrix-int1\")\n";
+print SCRIPT "height2 <- read.table(\"$path/trainingset/HCdesmatrix-int2\")\n";
+print SCRIPT "desmatrix.raw <- cbind(height0,height1,height2)\n";
+print SCRIPT "colnames(desmatrix.raw) <- seq(ncol(desmatrix.raw))\n";
+print SCRIPT "desmatrix <- as.matrix(desmatrix.raw)\n";
+print SCRIPT "response.raw <- read.table(\"$path/compound_class\")\n";
+print SCRIPT "response <- as.matrix(response.raw)\n";
+print SCRIPT "svm.all<-list()\n";
+my $fold=`ls -d *fold|grep -v "screening"`;
+chomp($fold);
+my @svm_min=`ls $fold/svm_alpha.*|grep -v "compiled"`;
+chomp(@svm_min);
+foreach my $svm(@svm_min){
+    $svm=~ s/$fold\/svm_alpha\.//;
+    print SCRIPT "load(\"$fold/jjc$svm/svm.min\")\n";
+    print SCRIPT "svm.all<-append(svm.all,svm.min)\n";
+}
+print SCRIPT "testmatrix<-desmatrix[,as.numeric(gsub(\"X\",\"\",colnames(svm.all[[1]]\@xmatrix[[1]])))]\n";
+print SCRIPT "response.pred<-predict(svm.all[[1]],testmatrix,type=\"decision\")\n";
+print SCRIPT "pred<-prediction(response.pred,response)\n";
+print SCRIPT "ROC<-list()\n";
+print SCRIPT "ROC[[1]]<-performance(pred,measure=\"tpr\",x.measure=\"fpr\")\n";
+print SCRIPT "plot(ROC[[1]])\n";
+print SCRIPT "ROC.data<-list()\n";
+print SCRIPT "ROC.data[[1]]<-matrix(nrow=length(ROC[[1]]\@x.values[[1]]),ncol=2,c(ROC[[1]]\@x.values[[1]],ROC[[1]]\@y.values[[1]]),byrow=F)\n";
+print SCRIPT "if (length(svm.all)>1){\n";
+print SCRIPT "    for (i in 2:length(svm.all)){\n";
+print SCRIPT "        testmatrix<-desmatrix[,as.numeric(gsub(\"X\",\"\",colnames(svm.all[[i]]\@xmatrix[[1]])))]\n";
+print SCRIPT "        response.pred=predict(svm.all[[i]],testmatrix,type=\"decision\")\n";
+print SCRIPT "        pred<-prediction(response.pred,response)\n";
+print SCRIPT "        ROC[[i]]<-performance(pred,measure=\"tpr\",x.measure=\"fpr\")\n";
+print SCRIPT "        ROC.data[[i]]<-matrix(nrow=length(ROC[[i]]\@x.values[[1]]),ncol=2,c(ROC[[i]]\@x.values[[1]],ROC[[i]]\@y.values[[1]]),byrow=F)\n";
+print SCRIPT "        plot(ROC[[i]],add=T)\n";
+print SCRIPT "    }\n";
+print SCRIPT "}\n";
+print SCRIPT "save(ROC,file=\"ROC\")\n";
+print SCRIPT "save(ROC.data,file=\"ROC.data\")";
+close(SCRIPT);
+system("chmod +x ROC_plot_all.R");

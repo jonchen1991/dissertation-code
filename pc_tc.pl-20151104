@@ -1,0 +1,169 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Author: Jonathan Jun Feng Chen
+# Description: Goes from scan files to calculate the overlap metric and the IC50 from a created model.
+
+# Change Log:
+# 07/24/2015: Added line to remove traning_scan after run.
+# 03/10/2015: Removed tc component from model script because tc of all PubChem too too much space and spun it out to this.
+# 11/22/2014: Split overlap output into overlap and tc output.
+# 11/11/2014: Rename output files to correspond to which output it is.  Added lines, progressively use models.
+# 11/05/2014: Delete commented TC and model for origianl usage (multivariate with output from Minitab and fotran). Reintroduced TC for later usage.
+# 08/20/2014: Commenting for clarity, commented out TC (not needed at time)
+# 07/29/2014: Initial modification for stricter overlap coefficent and model fitting R output
+# 04/18/2014: Modification from Derick's script to become this one
+
+# Based on :
+# Author:  Derick C. Weis
+# Last updated:  10/22/07
+# pc_desmatrix.pl
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Root path and final folder path
+my $root_path="/home/visco/jjc/AID_825/V2_lessCID426874";
+my $folder_name="15fold"; 
+
+# Directory containing all/the sdscan files.
+my $scan = "$root_path/$folder_name/";
+
+# Signature height
+my $start_height=0;
+my $end_height=2;
+my $height="$start_height-$end_height";
+
+# Output file: Filtered results of the sdfscan files
+my $tc_output="$root_path/$folder_name/filtered_svm_tc";
+
+# Training path for PubChem to compare against
+my $training_path="$root_path/trainingset";
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+my @a=0; # array of signature count of each molecule in training set for TC calculation
+my @b=0; # array of signature count of each  molecule in PubChem set for TC calculation
+my @c=0; # array of signature that are  common of molecules in both sets for TC calculation
+my @x=0;
+my %compound=();
+my $cid=0;
+my $name;
+my $filecount=0; #filecount of trainingset
+my @filehandle;
+my $prevhandle="kjbkjvjvmbjkfkjvj";
+my %matrix=(); #training database matrix
+my $a=0;
+my @training_scan;
+
+# Training Set information/data
+for my $i ($start_height..$end_height){
+    push(@training_scan,"$training_path/*.scan$i");
+ }
+
+# compile scan file names into one file to read from.
+system("ls @training_scan >training_scan");
+
+# count for TC calculations later
+open(SCANLIST,"<training_scan");
+while(my $filename=<SCANLIST>){
+    my @filehandle = split(/\./,$filename);
+    if ($filehandle[0] eq $prevhandle){
+	open(CHEMBL,"<$filename")||die "could not open $filename";
+	while (my $line=<CHEMBL>){
+	    chomp($line);
+	    last if ($line eq "0.0 ");
+	    @x = split(/\s/,$line);
+	    next if ($matrix{$filecount}{$x[1]});
+	    $matrix{$filecount}{$x[1]}=$x[0]; #signature key/hash for  each compound in training set
+	    $a=$a+$x[0];
+	}
+	close(CHEMBL);
+	$a[$filecount-1]=$a; #saving signature count to array a
+    }
+    else{
+	$a=0; #signature count for molecule
+	$filecount++; #counting files read in training set
+	open(CHEMBL,"<$filename")||die "could not open $filename";
+	while (my $line=<CHEMBL>){
+	    chomp($line);
+	    last if ($line eq "0.0 ");
+	    @x = split(/\s/,$line);
+	    next if ($matrix{$filecount}{$x[1]});
+	    $matrix{$filecount}{$x[1]}=$x[0]; #signature key/hash for  each compound in training set
+	    $a=$a+$x[0];
+	    $a[$filecount-1]=$a; #saving signature count to array a
+	}
+	close(CHEMBL);
+	$prevhandle=$filehandle[0];
+	
+    }
+}
+
+# Open output file
+open(TC_OUTPUT,">$tc_output");
+
+# Find the unique signatures occurrences in the sdfscan files.
+while ($name=<${scan}*${height}>) {
+    open(FILE,"$name") ||die "\nCould not open $name for reading.\n";
+  SIGNATURE:  while(<FILE>){
+      chomp($_);
+
+      #****************************
+      if($_ eq "" or $_ eq "\$\$\$\$"){
+	  next SIGNATURE;
+      #****************************	
+      } elsif($_ eq "0.0 "){
+	  my @sortedkeys = keys(%compound); #collect keys of signatures
+	  @sortedkeys = sort(@sortedkeys); #sort keys of signatures
+	  print TC_OUTPUT "#$cid";
+# calculate tantimoto coefficient
+	  for my $j(1..$filecount){ #calculate TC metric against each compound in training set
+	      my $b=0; #to compare to a for TC metric
+	      my $c=0; #to compare to a for TC metric
+	      my $a=$a[$j-1]; #corresponding compound currently TC calculation
+	      foreach my $key(@sortedkeys){
+		  $b=$b+$compound{$key}; #same as a above
+		  if($matrix{$j}{$key}){ #if signature in common, take lowest count
+#		      print "$matrix{$j}{$key} $key\n";
+		      if ($matrix{$j}{$key}<=$compound{$key}){
+			  $c=$c+$matrix{$j}{$key};
+		      }
+		      else {
+			  $c=$c+$compound{$key};
+		      }
+		  }
+#	      print "a=$a b=$b c=$c\n";
+	      }
+	      my $TC=$c/($a+$b-$c);
+	      printf TC_OUTPUT " %.3f", $TC;
+	      print TC_OUTPUT "\n" if ($j==$filecount);
+	      
+	  }
+	  %compound = (); #after done, reset hash/key for next compound in scan file.
+	  $cid = 0;
+      #****************************
+  } else { #actual harvestin of scan/signature data starts here
+	@x = split(/\s/,$_);
+
+	if($x[0] eq "#"){
+	  $cid=$x[1];
+	  next SIGNATURE;
+	}
+
+	# Skip duplicates.
+	if($compound{$x[1]}){
+	  if($compound{$x[1]} ne $x[0]){
+	    next SIGNATURE;
+	  }
+	}
+	
+	$compound{$x[1]}=$x[0]; #assignment and creation of hash/keys here.
+  }
+
+  }
+  close(FILE);  
+}
+print "\nOutput File:  $tc_output\n\n";
+system("rm training_scan")

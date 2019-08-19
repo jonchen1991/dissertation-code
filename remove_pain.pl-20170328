@@ -1,0 +1,31 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+my @name;
+my @data;
+my $pain_cid;
+my $old_cid=0;
+my @resultfiles=`ls *.result`;
+foreach my $resultfile (@resultfiles){
+    chomp($resultfile);
+    my $cidfile=$resultfile;
+    $cidfile=~s/\.result//;
+    $cidfile=~s/smiles/cid/;
+    @name=split(/\./,$cidfile);
+    open(FH,"<$resultfile");
+    open(PAINS,">>$name[0].PAINS");
+    system("mkdir $name[0]_PAINS");
+    while(<FH>){
+	chomp($_);
+	my @data=split(/,/,$_);
+        next if ($data[0] eq "smiles");
+#	print "sed -n $data[1]p $cidfile\n";
+	my $pain_cid=`sed -n $data[1]p $cidfile`;
+	next if ($pain_cid eq $old_cid);
+	$old_cid=$pain_cid;
+	print PAINS "$pain_cid";
+	chomp($pain_cid);
+	system("mv $name[0]/$pain_cid.mol $name[0]_PAINS");
+    }
+}

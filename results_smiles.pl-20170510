@@ -1,0 +1,27 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+@ARGV==4||die "\n\nUSAGE: ./results_smiles.pl <*.cid> <*.smiles> <*_NOPAINS> <*_smiles>\n";
+
+open(CID,"<$ARGV[0]");
+open(SMILES,"<$ARGV[1]");
+my @cid=<CID>;
+chomp(@cid);
+my @smiles=<SMILES>;
+chomp(@smiles);
+my $count=@cid;
+my %cid_smiles=();
+for my $i (0..$count-1){
+    $cid_smiles{$cid[$i]}=$smiles[$i];
+}
+close(CID);
+close(SMILES);
+
+open(RESULTS,"<$ARGV[2]");
+open(OUTPUT,">$ARGV[3]");
+while(my $line=<RESULTS>){
+    chomp($line);
+    my @results=split(/\s/,$line);
+    print OUTPUT "$results[0] $cid_smiles{$results[0]}\n";
+}

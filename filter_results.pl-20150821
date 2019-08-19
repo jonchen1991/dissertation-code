@@ -1,0 +1,111 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+# To parse the results file for relevant data in model: features, SV, cost, alpha.x, intercept
+
+@ARGV == 2 || die "\n\nUsage:\n perl filter_results.pl <file_basename> <file #> (IE summary_svm.1: file_basename = summary_svm, file# = 1)\n\n";
+my $basename = $ARGV[0];
+my $call = $ARGV[1];
+my @files = ("${basename}_cost.$call","${basename}_sv.$call","${basename}_features.$call","$basename.$call","${basename}_alpha.$call","${basename}_intercept.$call","${basename}_rng.$call");
+my @x;
+my $svflag=0;
+my $rngflag=0;
+my $featuresflag=0;
+my $alphaflag=0;
+my $interceptflag=0;
+my $costflag=0;
+open(COST, ">$files[0]");
+open(SV, ">$files[1]");
+open(FEATURES, ">$files[2]");
+open(ALPHA, ">$files[4]");
+open(INTERCEPT, ">$files[5]");
+open(RESULTS, "<$files[3]");
+open(RNG, ">$files[6]");
+LINE: while(<RESULTS>){
+#    if(index($_,"parameter : cost C =") != -1){
+#	@x = split(/\s/,$_);
+#	print COST "$x[-1]\n";
+#    }
+    if(index($_,"Number of Support Vectors :") != -1){
+	@x = split(/\s/,$_);
+	print SV "$x[-1]";
+    }
+    if(index($_,'[1] "Cost"') != -1){
+	$costflag=1;
+	next LINE;
+    }
+    if(index($_,'[1] "RNG state"') != -1){
+	$rngflag=1;
+	next LINE;
+    }
+    if(index($_,'[1] "Support Vectors"') != -1){
+	$svflag=1;
+	print RNG "\n";
+	$rngflag=0;
+	next LINE;
+    }
+    if(index($_,'[1] "Features Used"') != -1){
+	$svflag=0;
+	print SV "\n";
+	$featuresflag=1;
+	next LINE;
+    }
+    if(index($_,'[1] "alpha.x"') != -1){
+        $featuresflag=0;
+        print FEATURES "\n";
+	$alphaflag=1;
+	next LINE;
+    }
+    if(index($_,'[1] "intercept/b"') != -1){
+	$alphaflag=0;
+	print ALPHA "\n";
+	$interceptflag=1;
+	next LINE;
+    }
+#    if(index($_,'Support Vector Machine object of class "ksvm"') !=-1){
+#	$interceptflag=0;
+#	print INTERCEPT "\n";
+#	next LINE;
+#    }
+    if($costflag == 1){
+	chomp($_);
+        @x = split(/\]/,$_);
+	print COST "$x[1]\n";
+	$costflag=0;
+	next LINE;
+    }
+    if($rngflag == 1){
+	chomp($_);
+	@x = split(/\]/,$_);
+	print RNG "$x[1]";
+    }
+    if($svflag == 1){
+	chomp($_);
+	@x = split(/\]/,$_);
+	print SV "$x[1]";
+    }
+    if($featuresflag == 1){
+	chomp($_);
+        @x = split(/\]/,$_);
+	print FEATURES "$x[1]";
+    }
+    if($alphaflag == 1){
+	chomp($_);
+	@x = split(/\]/,$_);
+	print ALPHA "$x[1]";
+    }
+    if($interceptflag == 1){
+	chomp($_);
+	@x = split(/\]/,$_);
+	print INTERCEPT "$x[1]\n";
+	$interceptflag=0;
+	next LINE;
+    }
+}
+close(RNG);
+close(COST);
+close(SV);
+close(FEATURES);
+close(RESULTS);
+close(ALPHA);
+close(INTERCEPT);

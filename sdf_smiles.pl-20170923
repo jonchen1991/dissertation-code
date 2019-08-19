@@ -1,0 +1,39 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use File::Basename;
+
+@ARGV>0||die "\n\nUsage: ./sdf_smiles.pl <1+ list of sdf files to extract smiles from>";
+chomp(@ARGV);
+my $cid_flag=0;
+my $smiles_flag=0;
+my $filename;
+foreach my $sdf (@ARGV){
+    $filename = basename $sdf;
+    $filename =~ s/.sdf//;
+    print "$filename\n";
+    open(SDF,"<$filename.sdf");
+    open(CID,">$filename.cid");
+    open(SMILES,">$filename.smiles");
+    while(my $line=<SDF>){
+	chomp($line);
+	if ($cid_flag eq 1){
+	    print CID "$line\n";
+	    $cid_flag=0;
+	    next;
+	}
+	if ($smiles_flag eq 1){
+	    print SMILES "$line\n";
+	    $smiles_flag=0;
+	    next;
+	}
+	if ($line eq "> <PUBCHEM_COMPOUND_CID>"){
+	    $cid_flag=1;
+	    next;
+	}
+	if ($line eq "> <PUBCHEM_OPENEYE_CAN_SMILES>"){
+	    $smiles_flag=1;
+	    next;
+	}
+    }
+}

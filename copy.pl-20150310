@@ -1,0 +1,11 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+
+# Author: Jonathan Jun Feng Chen
+# Description: Copies target files for however many times as directed
+
+@ARGV==4 ||die "\n\nusage: ./copy.pl file_name extension start# end# \n\n";
+for my $i ($ARGV[2]..$ARGV[3]){
+    system("cp $ARGV[0].$ARGV[1] $ARGV[0]_$i.$ARGV[1]");
+}

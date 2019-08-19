@@ -1,0 +1,25 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+my $sdf_out="scaffold2";
+my @cid_list=qw(
+2140154
+1409855
+);
+my $cid_string=join(",",@cid_list);
+system("curl https://pubchem.ncbi.nlm.nih.gov/pc_fetch/pc_fetch.cgi -F db=pccompound -F idinput=fromstring -F idstr=$cid_string -F retmode=sdf>curl.out");
+my $curl_status=`grep "queue status" curl.out`;
+my $reqid=`grep "document.location.replace" curl.out`;
+($reqid) = $reqid =~ /\"(.*)\"/;
+print "request ID: $reqid\n";
+while(index($curl_status,"Done") == -1){
+    sleep(5);
+    system("curl https://pubchem.ncbi.nlm.nih.gov/pc_fetch/$reqid>curl.out");
+    $curl_status=`grep "queue status" curl.out`;
+}
+my $ftp_url=`grep "document.location.replace" curl.out`;
+($ftp_url) = $ftp_url =~ /\"(.*)\"/;
+print "FTP url: $ftp_url\n";
+system("wget $ftp_url -O $sdf_out.sdf.gz");
+system("gunzip $sdf_out.sdf.gz");
+

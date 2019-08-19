@@ -1,0 +1,31 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+# Author: Jonathan Jun Feng Chen
+# Last modified: 11/03/2014
+# Description: Matches compounds to class then applies it to the mixed matrix later.
+open(RESULTS,">trainingset.results");
+open(CID,"<compound_order");
+open(CLASS,">compound_class");
+open(ACTIVES,"<actives.list");
+open(INACTIVES,"<inactives.list");
+my $basename;
+my %trainingset;
+while(my $active=<ACTIVES>){
+    chomp($active);
+    $basename=`basename $active .mol`;
+    chomp($basename);
+    $trainingset{$basename}=1;
+    print RESULTS "$basename 1\n";
+}
+while(my $inactive=<INACTIVES>){
+    chomp($inactive);
+    $basename=`basename $inactive .mol`;
+    chomp($basename);
+    $trainingset{$basename}=-1;
+    print RESULTS "$basename -1\n";
+}
+while(<CID>){
+    chomp($_);
+    print CLASS "$trainingset{$_}\n";
+}

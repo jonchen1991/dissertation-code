@@ -1,0 +1,19 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+open(RUN,">bash_run_all");
+open(SUPPRESS,">bash_suppress_all");
+print RUN "#!/usr/bin/env bash\n";
+print SUPPRESS "#!/usr/bin/env bash\n";
+for my $i (0..47){
+#    print RUN "taskset -c $i nohup jjc$i/ga_svm.R > raw_svm.$i &\n";
+#    print RUN "taskset -c $i nohup jjc$i/ga_svr.R > raw_svr.$i &\n";
+    print RUN "taskset -c $i nohup jjc$i/ga_svm.R > raw_svm.$i && taskset -c $i nohup jjc$i/ga_svr.R >raw_svr.$i  &\n";
+    print SUPPRESS "./suppress_messages.pl raw_svm.$i svm.$i\n";
+    print SUPPRESS "./suppress_messages.pl raw_svr.$i svr.$i\n";
+}
+close(RUN);
+close(SUPPRESS);
+system("chmod +x bash_run_all");
+system("chmod +x bash_suppress_all");

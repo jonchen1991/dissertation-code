@@ -1,0 +1,20 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+# Author: Jonathan Jun Feng Chen
+# Last modified: 02/25/2014
+# Description: Matches compounds to activity then applies it to the mixed matrix later.
+open(DATABASE,"<activity.list") || die "Could not open DATABASE!\n\n";
+open(CID,"<activity.order") || die "Could not open CID!\n\n";
+open(VALUE,">activity.value") || die "Could not open VALUE!\n\n";
+my %dataset;
+my @x;
+while(<DATABASE>){
+    chomp($_);
+    @x=split(/\s/,$_);
+    $dataset{$x[0]}=$x[1];
+}
+while(<CID>){
+    chomp($_);
+    print VALUE "$dataset{$_}\n";
+}

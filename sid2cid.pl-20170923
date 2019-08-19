@@ -1,0 +1,25 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+# Takes CID listed from active and inactive sdf as a ".sid" file and extracts it. Allows using CIDs instead of SIDs. Used in conjunction with download_sdf.pl and sdf_smiles.pl to workaround using molconvert to obtain smiles.
+@ARGV==2 || die "\n\nusage: ./sid2cid.pl <SID.sdf> <CID.list>";
+
+open(SID,"<$ARGV[0]");
+open(CID,">$ARGV[1]");
+
+my @x;
+my $cid_flag=0;
+my $line;
+while($line=<SID>){
+    chomp($line);
+    if($cid_flag==1){
+	@x=split(/\s+/,$line);
+	print CID "$x[0]\n";
+	$cid_flag=0;
+	next;
+    }
+    if($line eq "> <PUBCHEM_CID_ASSOCIATIONS>"){
+	$cid_flag=1;
+	next;
+    }
+}

@@ -1,0 +1,18 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+open(SCREEN,"<filtered_screen");
+open(CHECK,">sdf_check.absent");
+system("mkdir screen_actives");
+while(<SCREEN>){
+    my @data=split(/\s/,$_);
+    next if ($data[0] eq "#cid");
+    $data[0]=~s/#//;
+    my $grep=`grep "$data[0]\n" screen_actives.sdf`;
+    if ($grep ne ""){
+	system("mv sdf_extra/$data[0].mol screen_actives/");
+    }else{
+	print CHECK "$data[0]\n";
+    }
+}

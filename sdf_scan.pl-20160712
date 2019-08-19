@@ -1,0 +1,122 @@
+#!/usr/bin/perl -w
+# Derick C. Weis
+# 11/21/07
+
+use strict;
+
+@ARGV >= 2
+or die ("\nUSAGE:\nperl sdf_scan.pl <file.sdf> <height>\n\n");
+
+# This perl script converts an sdf file with multiple compounds
+# to a compiled scan file with the same ordr. The sdf header 
+# "PUBCHEM_COMPOUND_CID" will be appled for each compound.
+
+# Change the path to these programs.
+my $molconvert = "/home/visco/ChemAxon/MarvinBeans/bin/molconvert";
+my $translator = "/home/visco/Tutorial/Tutorial_2.0/translator/bin/tra";
+
+# Enter the sdf file.
+my $name = "$ARGV[0]";
+my $name_base = $name;
+$name_base =~ s/.sdf//;
+
+# Enter a temporary directory to store mol files.
+my $mol_directory = "/tmp/TEMP_"."$name_base";
+if(-e "/tmp"){
+    # Do nothing
+} else {
+    system("mkdir /temp");
+}
+
+if(-e $mol_directory){
+  system("rm -r $mol_directory");
+}
+system("mkdir $mol_directory");
+
+# Aromatize the sdf file with Marvin Beans.
+my $name_aromatic = $name;
+$name_aromatic =~ s/.sdf/_p.sdf/;
+# system("dos2unix -q $name");
+system("$molconvert sdf:aH $name -o $name_aromatic");
+system("mv $name_aromatic ${mol_directory}\/.");
+$name_aromatic = "$mol_directory"."\/"."$name_aromatic";
+
+# Declare global variables.
+my @file_name=();
+my $file_mol;
+my $cid;
+my $count_files=0;
+my $height =$ARGV[1];
+my $i=0;
+my $j=0;
+my $line;
+my @temp=();
+
+# Open the compiled scan file for output.
+my $file_sdscan = $name;
+$file_sdscan =~ s/.sdf/.sdscan${height}/;
+if(-e $file_sdscan){
+    system("rm $file_sdscan");
+}
+open(FILE_SDSCAN,">$file_sdscan") ||die "\nCould not open $file_sdscan.\n";
+
+# Write each compound in the sdf file to the sdscan file.
+# $system("dos2unix -q $name_aromatic");
+open(FILE_SDF,"$name_aromatic") ||die "\nCould not open $name_aromatic to separate the sdf file.\n";
+while(<FILE_SDF>){
+    chomp($_);
+
+    # Store each line.
+    $temp[$i]=$_;
+    ++$i;
+    ++$line;
+
+    # Chop up the aromatized sdf file.
+    if($_ eq "\$\$\$\$"){
+	++$count_files;
+
+	# Find the CID.
+	for($j=0; $j<$i; $j++){
+	    if($temp[$j] eq ">  <PUBCHEM_COMPOUND_CID>"){
+		$cid=$temp[$j+1];
+		$file_mol = "${mol_directory}/cid_${cid}.mol";
+	    }
+	}
+	if($cid eq "NONE"){die "\nMISSING CID: Line $line $name\n\n"};
+
+	# Create the new mol file.
+	open(FILE_MOL,">$file_mol") ||die "\nCould not open ${file_name[$i]}.mol to write a mol file.\n";
+	foreach $j (@temp){
+	    print FILE_MOL "$j\n";
+	    if($j eq "M  END"){last}
+	}
+	close(FILE_MOL);
+
+	# Translate the mol file and write to compiled scan file.
+	$file_mol =~ s/.mol//;
+	system("$translator $file_mol mol scan${height}");
+	print FILE_SDSCAN "\# $cid\n";
+	$file_mol = "$file_mol"."\.scan${height}";
+	open(FILE_MOL_READ,"$file_mol") ||die "\nCould not open $file_mol for reading.\n";
+	my @sig=<FILE_MOL_READ>;
+	close(FILE_MOL_READ);
+	foreach $j (@sig){
+	    print FILE_SDSCAN "$j";
+	}
+	print FILE_SDSCAN "\$\$\$\$\n";
+
+	$i=0;
+	@temp=();
+	$cid="NONE";
+
+    }
+
+}
+
+close(FILE_SDF);
+close(FILE_MOL);
+close(FILE_SDSCAN);
+print "\n$count_files scan${height} files in the output file: $file_sdscan\n";
+
+# Remove the temporary directory.
+system("rm -r $mol_directory");

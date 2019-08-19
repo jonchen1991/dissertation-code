@@ -1,0 +1,19 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+
+@ARGV >=2 || die "\n\nUsage:\n perl supress_messages.pl <results w/ messages> <results only> \n\n";
+my $messages = $ARGV[0];
+my $results = $ARGV[1];
+my @x;
+open(MESSAGES,"<$messages")||die "cannot open results w/ messages";
+open(RESULTS, ">$results")||die "cannot open results only";
+
+while(<MESSAGES>){
+    if (index($_,"Setting") == -1){
+	print RESULTS "$_";
+    }
+}
+
+close(MESSAGES);
+close(RESULTS);

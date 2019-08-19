@@ -1,0 +1,79 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+my @svm_all=`grep "Best" raw_svm*`;
+my @svr_all=`grep "Best" raw_svr*`;
+my $xsvm_best=-1000;
+my $xsvr_best=-1000;
+my @xsvm;
+my @xsvr;
+my $asvm_best=1000;
+my @asvm;
+my @data;
+my @seednumber;
+foreach my $line(@svm_all){
+    chomp($line);
+    @data=split(/\s+/,$line);
+    @seednumber=split(/:/,$data[0]);
+    $data[10]=$data[10]*1;
+    if ($xsvm_best gt $data[10]){
+	$xsvm_best=$data[10];
+	@xsvm=[];
+	$xsvm[0]=$seednumber[0];
+    }elsif ($xsvm_best eq $data[10]){
+	push(@xsvm,$seednumber[0]) if ($seednumber[0] ne $xsvm[-1]);
+    }
+}
+foreach my $line(@svr_all){
+    chomp($line);
+    @data=split(/\s+/,$line);
+    @seednumber=split(/:/,$data[0]);
+    $data[10]=$data[10]*1;
+    if ($xsvr_best gt $data[10]){
+        $xsvr_best=$data[10];
+	@xsvr=[];
+        $xsvr[0]=$seednumber[0];
+    }elsif ($xsvr_best eq $data[10]){
+        push(@xsvr,$seednumber[0]) if ($seednumber[0] ne $xsvr[-1]);
+    }
+}
+
+foreach (@xsvm){
+    @data=`grep "minimum training error" -A 1 $_`;
+    chomp(@data);
+    my @data_accuracy=split(/\s/,$data[1]);
+    $data_accuracy[1]=$data_accuracy[1]*1;
+    if ($asvm_best gt $data_accuracy[1]){
+	$asvm_best=$data_accuracy[1];
+	@asvm=[];
+	$asvm[0]=$_;
+    }elsif ($asvm_best eq $data_accuracy[1]){
+	push(@asvm,$_);
+    }
+}
+
+print "@asvm\n";
+print "@xsvr\n";
+
+die if -e "svm_alpha.compiled";
+
+foreach (@asvm){
+    my $line=$_;
+    ($line) = $line =~ /\.(\d*)/;
+    system("./suppress_messages.pl raw_svm.$line svm.$line");
+    system("./filter_results.pl svm $line");
+    system("cat svm_alpha.$line >> svm_alpha.compiled");
+    system("cat svm_features.$line >> svm_features.compiled");
+    system("cat svm_intercept.$line >> svm_intercept.compiled");
+}
+foreach (@xsvr){
+    my $line=$_;
+    ($line) = $line =~ /\.(\d*)/;
+    system("./suppress_messages.pl raw_svr.$line svr.$line");
+    system("./filter_results.pl svr $line");
+    system("cat svr_alpha.$line >> svr_alpha.compiled");
+    system("cat svr_features.$line >> svr_features.compiled");
+    system("cat svr_intercept.$line >> svr_intercept.compiled");
+}
+print "SVM Results : Best=$xsvm_best; seed#= @asvm\n";
+print "SVR Results : Best=$xsvr_best; seed#= @xsvr\n";

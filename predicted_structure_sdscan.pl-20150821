@@ -1,0 +1,61 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# Description: Use HCDatabase1 and inverse design desmatrix to make sdscan0-1 file.
+# Author: Jonathan Chen
+# Last Modified: 07/23/2015
+
+# Define paths
+my $root_path="/home/visco/jjc/admixture";
+my $HC1_path="$root_path/trainingset/HCdatabase1";
+my $desmatrix="$root_path/fort.25";
+my $sdscan="$desmatrix.sdscan0-1";
+# Define variables
+
+my %signature; # For decomposition from height1 to height0
+my @height0;
+my @height1;
+my $line;
+my $string;
+my $height0_length;
+my $height1_length;
+my @x;
+my $structure_count=1;
+# Grab signatures
+open(HC1,"<$HC1_path")||die "\nCouldn't open HCdatabase1\n";
+while($line=<HC1>){
+    chomp($line);
+    next if (index($line,"1")==0);
+    push(@height1,$line);
+    $string=substr($line,0,3);
+    if (!defined($signature{$string})){
+	$signature{$string}=0;
+	push(@height0,$string);
+    }
+}
+close(HC1);
+$height0_length=@height0;
+$height1_length=@height1;
+
+# Transform desmatrix into sdscan file
+open(DESMATRIX,"<$desmatrix")||die "\nCouldn't open desmatrix\n";
+open(SDSCAN,">$sdscan")||die "\nCouldn't open .sdscan0-1\n";
+while($line=<DESMATRIX>){
+    chomp($line);
+    @x=split(/\s+/,$line);
+    shift(@x);
+    print SDSCAN "# $structure_count\n";
+    for my $i (0..$height1_length-1){
+	next if ($x[$i]==0);
+	print SDSCAN "$x[$i].0 $height1[$i]\n";
+	$signature{substr($height1[$i],0,3)} = $signature{substr($height1[$i],0,3)} + $x[$i];
+    }
+    for my $i (0..$height0_length-1){
+	next if ($signature{$height0[$i]}==0);
+	print SDSCAN "$signature{$height0[$i]}.0 $height0[$i]()\n";
+	$signature{$height0[$i]}=0;
+    }
+    $structure_count++;
+    print SDSCAN "0.0 \n\$\$\$\$\n";
+}

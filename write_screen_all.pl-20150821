@@ -1,0 +1,25 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# Author: Jonathan Jun Feng Chen
+# Description: Writes bash script that starts all pc_model_svm_all and pc_model_svr_all in parallel
+
+# Changelog: 
+# 08/10/2015: Creation
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+my $results_directory="screening_10fold_logscale";
+my $start=0;
+my $stop=31;
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+open(RUN,">bash_screen_all");
+print RUN "#!/usr/bin/env bash\n";
+for my $i ($start..$stop){
+#    print RUN "taskset -c $i nohup ./pc_model_svm_all_$i.pl $i > $results_directory/svm_screen.$i && ./pc_model_svr_all_$i.pl $i > $results_directory/svr_screen.$i &\n";
+#    print RUN "taskset -c $i nohup ./pc_model_svm_all_$i.pl $i > $results_directory/svm_screen.$i &\n";
+    print RUN "taskset -c $i nohup ./pc_model_svr_all_$i.pl $i > $results_directory/svr_screen.$i &\n";
+}
+close(RUN);
+system("chmod +x bash_screen_all");

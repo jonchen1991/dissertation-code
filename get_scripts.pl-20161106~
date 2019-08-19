@@ -1,0 +1,48 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+my $activity_sort="activity_sort.pl-20150821";
+my $class_sort="class_sort.pl-20160712";
+my $copy="copy.pl-20150310";
+my $filter_results="filter_results.pl-20150821";
+my $log="log.R-20160704";
+my $pca="pca.R-20150821";
+my $pc_model_svm_all="pc_model_svm_all.pl-20160712";
+my $pc_model_svr_all="pc_model_svr_all.pl-20160712";
+my $pc_tc="pc_tc.pl-20161106";
+my $mol_convert="perl-mol-convert-master-20160712";
+my $results_processing="results_processing.pl-20160712";
+my $scale="scale.pl-20150821";
+my $sdf_mol="sdf_mol.pl-20160712";
+my $sdf_scan="sdf_scan.pl-20160712";
+my $suppress_messages="suppress_messages.pl-20150821";
+my $write_bash="write_bash.pl-20160713";
+my $write_mol_convert_all="write_mol_convert_all.pl-20160704";
+my $write_Rscript="write_Rscript.pl-20160704";
+my $write_screen_all="write_screen_all.pl-20160713";
+my $mol_smiles="mol_smiles.pl-20170324";
+my $zinc15_pain="zinc15_pain_filter.pl-20170327";
+my $scripts_history="/home/visco/jjc/scripts_history";
+
+system("cp $scripts_history/$zinc15_pain ./zinc15_pain_filter.pl");
+system("cp $scripts_history/$mol_smiles ./mol_smiles.pl");
+system("cp $scripts_history/$activity_sort ./activity_sort.pl");
+system("cp $scripts_history/$class_sort ./class_sort.pl");
+system("cp $scripts_history/$copy ./copy.pl");
+system("cp $scripts_history/$filter_results ./filter_results.pl");
+system("cp $scripts_history/$log ./log.R");
+system("cp $scripts_history/$pca ./pca.R");
+system("cp $scripts_history/$pc_model_svm_all ./pc_model_svm_all.pl");
+system("cp $scripts_history/$pc_model_svr_all ./pc_model_svr_all.pl");
+system("cp $scripts_history/$pc_tc ./pc_tc.pl");
+system("cp $scripts_history/$mol_convert ./perl-mol-convert-master");
+system("cp $scripts_history/$results_processing ./results_processing.pl");
+system("cp $scripts_history/$scale ./scale.pl");
+system("cp $scripts_history/$sdf_mol ./sdf_mol.pl");
+system("cp $scripts_history/$sdf_scan ./sdf_scan.pl");
+system("cp $scripts_history/$suppress_messages ./suppress_messages.pl");
+system("cp $scripts_history/$write_bash ./write_bash.pl");
+system("cp $scripts_history/$write_mol_convert_all ./write_mol_convert_all.pl");
+system("cp $scripts_history/$write_Rscript ./write_Rscript.pl");
+system("cp $scripts_history/$write_screen_all ./write_screen_all.pl");

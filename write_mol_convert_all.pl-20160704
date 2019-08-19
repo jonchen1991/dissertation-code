@@ -1,0 +1,26 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+my $start=0;
+my $stop=2;
+#my $root_path="/home/visco/jjc/dissertation/AID_1077_v1";
+my $root_path=`pwd`;
+chomp($root_path);
+open(RUN,">$root_path/bash_mol_convert_all")||die "\n\nCouldn't open RUN\n\n";
+print RUN "#!/usr/bin/env bash\n\n";
+print RUN "nohup ";
+for my $i ($start..$stop){
+    print RUN "./perl-mol-convert-master $root_path/activity $i ";
+    print RUN ">$root_path/activity.order " if ($i==$start);
+    print RUN "&& ";
+    print RUN "./perl-mol-convert-master $root_path/trainingset $i ";
+    print RUN ">$root_path/compound_order " if ($i==$start);
+    if ($i!=$stop){
+	print RUN "&& ";
+    } else {
+	print RUN "&";
+    }
+}
+close(RUN);
+system("chmod +x $root_path/bash_mol_convert_all");

@@ -1,0 +1,84 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+#get v1 path
+my $v1_path=`pwd`;
+chomp($v1_path);
+$v1_path =~ s/v2/v1/;
+print "v1_path: $v1_path\n";
+#loop through all scaffold directories and documents results
+chdir("scaffold_find");
+my @scaffold_directories=`ls -d scaffold*`;
+chomp(@scaffold_directories);
+my @data;
+my $compound_number;
+my @base_data;
+my $base_length;
+my @old_descriptors;
+my @new_descriptors;
+my @compound_data;
+my $descriptor_index;
+my $signature;
+my $index_grep;
+my $index_length;
+my $cid;
+foreach my $directory(@scaffold_directories){
+    open(RESULTS,">results.$directory");
+    chdir("$directory");
+    print "$directory\n";
+
+#get desmatrix containing scaffold information
+    open(SCAFFOLD,"<HCdesmatrix-int2");
+    @data =<SCAFFOLD>;
+    $compound_number=@data;
+    close(SCAFFOLD);
+
+#get base line information from 1st compound. If it is part of scaffold, entries should be uniform across compounds.
+    @base_data=split(/\s/,$data[0]);
+    $base_length=@base_data;
+    @old_descriptors=(1..$base_length);
+    print "$compound_number\n";
+    print "@old_descriptors\n";
+
+#get each compound's data and compare it to base data. If $base_data ne $compound_data, that entry is popped and under consideration for any other compound.
+    for my $i(1..$compound_number-1){
+	@new_descriptors=();
+	@compound_data=split(/\s/,$data[$i]);
+	foreach $descriptor_index (@old_descriptors){
+	    push(@new_descriptors,$descriptor_index) if ($base_data[$descriptor_index-1] eq $compound_data[$descriptor_index-1]);
+	}
+	@old_descriptors=@new_descriptors;
+	print "@old_descriptors\n";
+    }
+
+#get corresponding signature of remaining descriptor index and get descriptor index in trainingset
+    @new_descriptors=();
+    foreach $descriptor_index (@old_descriptors){
+	$signature=`sed -n ${descriptor_index}p HCdatabase2`;
+	chomp($signature);
+	$index_grep=`grep -Fn "$signature" $v1_path/trainingset/HCdatabase2`;
+	chomp($index_grep);
+	@compound_data=split(/:/,$index_grep);
+	push(@new_descriptors,$compound_data[0]);
+	print "$signature $descriptor_index $compound_data[0]\n";
+    }
+    print "@new_descriptors\n";
+
+#scan trainingset for scaffold matches
+    $index_length=@old_descriptors;
+    open(TRAININGSET,"<$v1_path/trainingset/HCdesmatrix-int2");
+    @data=<TRAININGSET>;
+    close(TRAININGSET);
+    $compound_number=@data;
+  screen:for my $i (1..$compound_number){
+      @compound_data=split(/\s/,$data[$i-1]);
+      for my $j (1..$index_length){
+	  next screen if ($compound_data[$new_descriptors[$j-1]-1] lt $base_data[$old_descriptors[$j-1]-1]||$compound_data[$new_descriptors[$j-1]-1] gt $base_data[$old_descriptors[$j-1]-1]+1)
+      }
+      $cid=`sed -n ${i}p $v1_path/compound_order`;
+      print "$i $cid";
+      print RESULTS "$cid";
+  }
+    close(RESULTS);
+    chdir("..");
+}

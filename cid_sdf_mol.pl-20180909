@@ -1,0 +1,91 @@
+#!/usr/bin/perl -w
+# Derick C. Weis
+# 9/26/07
+
+use strict;
+
+@ARGV >= 2
+or die ("\nUSAGE:\nperl sdf_mol.pl <file.sdf> <directory_name>\n\n");
+
+# This perl script converts an sdf file with multiple compounds
+# to individual mol files with aromatic bonds. The sdf header 
+#"PUBCHEM_SUBSTANCE_ID" will be appled for the mol file name.
+
+# Enter the sdf file.
+my $name = "$ARGV[0]";
+
+# Enter a directory to store mol files.
+my $mol_directory = $ARGV[1];
+if(-e $mol_directory){
+  system("rm -r $mol_directory");
+}
+system("mkdir $mol_directory");
+
+# Declare variables.
+my $count_cmpds=0;
+my $flag=0;
+my @file_name=();
+my $count_files=0;
+
+# Convert the single/double bonds to aromatic bonds where needed.
+my $name_aromatic = $name;
+$name_aromatic =~ s/.sdf/_p.sdf/;
+system("/home/visco/ChemAxon/MarvinBeans/bin/molconvert sdf:aH $name -o $name_aromatic");
+
+# Scan the sdf file to obtain the number of compounds and file names.
+open(FILE_SDF,"$name_aromatic") ||die "\nCould not open $name for reading.\n";
+while(<FILE_SDF>){
+   chomp($_);  
+
+   if($flag == 1){
+       $file_name[$count_cmpds] = $_;
+#       print "$file_name[$count_cmpds]\n";
+       $flag=0;
+   }
+
+   my @header=split;
+   if($_ eq ">  <PUBCHEM_COMPOUND_CID>"){
+       $flag = 1;
+       ++$count_cmpds;
+     }
+
+}
+close(FILE_SDF);
+
+# Write each compound to an individual file.
+open(FILE_SDF,"$name_aromatic") ||die "\nCould not open $name to separate the sdf file.\n";
+my $i=1;
+open(FILE_MOL,">./${mol_directory}/${file_name[$i]}.mol") ||die "\nCould not open ${file_name[$i]}.mol to write a mol file.\n";
+
+$count_files=0;
+$flag=0;
+
+while(<FILE_SDF>){
+    chomp($_);
+
+    if($_ eq "M  END"){
+      print FILE_MOL "$_\n";
+      close(FILE_MOL);
+      $flag = 1;
+      ++$count_files;
+    }
+
+    if($flag == 0){
+	print FILE_MOL "$_\n";
+    }
+
+    if($_ eq "\$\$\$\$" and $count_files != $count_cmpds){
+	++$i;
+	open(FILE_MOL,">./${mol_directory}/${file_name[$i]}.mol") ||die "\nCould not open ${file_name[$i]}.mol to write a mol file.\n";
+	$flag = 0;
+    }
+
+}
+close(FILE_SDF);
+close(FILE_MOL);
+
+# Remove the aromatic sdf file.
+system("rm $name_aromatic");
+
+print "$count_cmpds compounds from the file $name.\n";
+print "$count_files mol files created in the directory $mol_directory.\n";

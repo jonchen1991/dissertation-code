@@ -1,0 +1,27 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+@ARGV==2||die "USAGE: remove_pain_data.pl <datafile> <resultsfile\n\n"; 
+system("cat *.PAINS>remove_pain_list");
+open(LIST,"<remove_pain_list");
+my %pains;
+my @data;
+while(my $cid=<LIST>){
+    chomp($cid);
+    $pains{$cid}=1; 
+}
+close(LIST);
+open(RAW,"<$ARGV[0]");
+open(CLEAN,">$ARGV[1]");
+FILTER: while(my $line=<RAW>){
+    chomp($line);
+    @data=split(/[\s,]/,$line);
+    $data[0] =~ s/#//;
+    next FILTER if ($data[0] =~ /[[:alpha:]]/);
+    next FILTER if exists ($pains{$data[0]});
+#    print "$data[0]\n" if exists ($pains{$data[0]});
+    print CLEAN "@data\n";
+}
+close(RAW);
+close(CLEAN)

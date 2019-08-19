@@ -1,0 +1,196 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+# Author: Jonathan Jun Feng Chen
+# Created: 11/5/2014
+# Modified from write_Rscript_svr.pl.  Creates folders and writes R svr scripts to run.
+
+# Changelog 07/23/2015: Modified SVR height2 read in lines for iCAMD work. Not needed for height1 and height0 only models.
+# Changelog 07/22/2015: Modified SVR response lines to scale before any work since it does it internally. The numbers are more consistent this way.                                                  
+# Changelog 07/14/2015: Changed SVR response lines specifically for iCAMD work.  Can't use log(negative#'s).
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Root path
+#my $root_path="/home/visco/jjc/dissertation/AID_846_v1";
+my $root_path=`pwd`;
+chomp($root_path);
+
+# Cross-validation fold number
+#my $cross="leave.one.out";
+my $cross=10;
+
+# File path to folders to write Rscript to
+my $file_path="$root_path/${cross}fold/jjc";
+
+# Location of pca.features/features in general
+my $svm_feature_path="$root_path/svm.pca.features";
+my $svr_feature_path="$root_path/svr.pca.features";
+
+# Location of response/classification of compounds
+my $class_path="$root_path/compound_class";
+
+# Location of activity of compounds
+my $value_path="$root_path/activity.log";
+
+# File path to training
+my $training_path="$root_path/trainingset";
+my $activity_path="$root_path/activity";
+
+# Rcode name
+my $svr_name="ga_svr";
+
+# Start and stop of folders to write to
+my $file_start=0;
+my $file_stop=47;
+
+# Variables to control GA;
+my $cost_min = 0.01;
+my $cost_max = 1;
+my $cost_step = 0.01;
+my $elitism_rate = 0.7;
+my $crossover_chance = 0.8;
+my $mutation_chance = 0.1;
+my $population_size = 1000;
+my $iter_max = 10000;
+my $run = 100;
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+#Script starts here
+my $directory_path="$root_path/${cross}fold";
+system("mkdir $directory_path");
+system("cp $root_path/filter_results.pl $directory_path");
+system("cp $root_path/suppress_messages.pl $directory_path");
+system("cp $root_path/write_bash.pl $directory_path");
+system("cp $root_path/r1-suppress_filter_results.pl $directory_path");
+for my $i ($file_start..$file_stop){
+    system("mkdir $file_path$i");
+# SVR starts here
+    open(SVR,">$file_path$i/$svr_name.R");
+    print SVR "#!/usr/bin/env Rscript\n\n";
+
+    print SVR "# Time script\n";
+    print SVR "time.start <- proc.time()\n";
+    print SVR "library(GA)\n";
+    print SVR "library(kernlab)\n\n";
+
+    print SVR "# Read in data\n";
+    print SVR "height1 <- read.table(\"$activity_path/HCdesmatrix-int1\")\n";
+    print SVR "desmatrix.raw <- cbind(height1)\n";
+    print SVR "colnames(desmatrix.raw) <- seq(ncol(desmatrix.raw))\n";
+    print SVR "desmatrix <- as.matrix(desmatrix.raw)\n";
+    print SVR "load(\"$svr_feature_path\")\n";
+    print SVR "desmatrix <- desmatrix[,svr.pca.features]\n";
+    print SVR "response.raw <- read.table(\"$value_path\")\n";
+    print SVR "response <- as.matrix(scale(response.raw)[,])\n\n";  
+#    print SVR "response <- log(as.matrix(-response.raw),base=10)\n\n"; 
+#    print SVR "response <- log(as.matrix(response.raw),base=10)\n\n";
+
+    print SVR "# Variables to control GA\n";
+    print SVR "cost.min <- $cost_min\n";
+    print SVR "cost.max <- $cost_max\n";
+    print SVR "cost.step <- $cost_step\n";
+    print SVR "elitism.rate <- $elitism_rate\n";
+    print SVR "crossover.chance <- $crossover_chance\n";
+    print SVR "mutation.chance <- $mutation_chance\n";
+    print SVR "features.total <- ncol(desmatrix)\n";
+    print SVR "population.size <- $population_size\n";
+    print SVR "iter.max <- $iter_max\n";
+    print SVR "run <- $run\n";
+    print SVR "set.seed($i)\n\n";
+
+    print SVR "# Create initial population and other things to input into GA\n";
+    print SVR "initpop <- matrix(as.double(NA),nrow=population.size,ncol=features.total)\n";
+    print SVR "for (count in 1:population.size){\n";
+    print SVR "    pop <- rep(0,features.total)\n";
+    print SVR "    ones <- sample(features.total,sample(features.total,1))\n";
+    print SVR "    pop[ones] <- 1\n";
+    print SVR "    initpop[count,] <- pop\n";	
+    print SVR "}\n";
+    print SVR "save(initpop,file=\"$file_path$i/svr_initpop.RData\")\n";
+    print SVR "load(\"$file_path$i/svr_initpop.RData\")\n";
+    print SVR "print(\"Initial Population Created!\")\n";
+    print SVR "cost <- seq(cost.min,cost.max,cost.step)\n\n";
+
+    print SVR "# Variables to keep track of\n";
+    print SVR "svr.min <- list()\n";
+    print SVR "cross.min <- 100000\n";
+    print SVR "error.min <- 100000\n";
+    print SVR "count <- 1\n";
+    print SVR "svr.cost <- vector()\n";
+    print SVR "svr.rng<- list()\n\n";
+
+    print SVR "# Create model\n";
+    print SVR "selection <- function(string,cost){\n";
+    print SVR "    test.matrix <- desmatrix[,which(string==1)]\n";
+    print SVR "    leave.one.out <- nrow(desmatrix)\n";
+    print SVR "    random.cost<- sample(cost,1)\n";
+    print SVR "    current.rng.state<- get(\".Random.seed\", .GlobalEnv)\n";
+    print SVR "    svr.model <- ksvm(test.matrix,scaled=F,response,type=\"nu-svr\",kernel=\"vanilladot\",C=random.cost,nu=0.2,cross=$cross)\n";
+    print SVR "    if(svr.model\@cross == cross.min){\n";
+    print SVR "        if(svr.model\@error == error.min){\n";
+    print SVR "            count <<- count+1\n";
+    print SVR "            svr.cost[count] <<- random.cost\n";
+    print SVR "            svr.min[[count]] <<- svr.model\n";
+    print SVR "            svr.rng[[count]] <<-current.rng.state\n";
+    print SVR "            save(svr.min, file=\"$file_path$i/svr.min\")\n";
+    print SVR "            save(svr.rng, file=\"$file_path$i/svr.rng\")\n";
+    print SVR "        }\n";
+    print SVR "        if(svr.model\@error < error.min){\n";
+    print SVR "            count <<- 1\n";
+    print SVR "            svr.min <<- list()\n";
+    print SVR "            svr.rng<<-list()\n";
+    print SVR "            svr.cost<<-vector()\n";
+    print SVR "            svr.cost[count] <<- random.cost\n";
+    print SVR "            svr.min[[count]] <<- svr.model\n";
+    print SVR "            svr.rng[[count]]<<- current.rng.state\n";
+    print SVR "            error.min <<- svr.model\@error\n";
+    print SVR "            save(svr.min, file=\"$file_path$i/svr.min\")\n";
+    print SVR "            save(svr.rng, file=\"$file_path$i/svr.rng\")\n";
+    print SVR "        }\n";
+    print SVR "    }\n"; 
+    print SVR "    if(svr.model\@cross < cross.min){\n";
+    print SVR "        count <<- 1\n";
+    print SVR "        svr.min <<-list()\n";
+    print SVR "        svr.rng<<-list()\n";
+    print SVR "        cross.min <<- svr.model\@cross\n";
+    print SVR "        svr.cost<<-vector()\n";
+    print SVR "        svr.cost[count] <<- random.cost\n";
+    print SVR "        svr.min[[count]] <<- svr.model\n";
+    print SVR "        svr.rng[[count]]<<- current.rng.state\n";
+    print SVR "        error.min <<- svr.model\@error\n";
+    print SVR "        save(svr.min, file=\"$file_path$i/svr.min\")\n";
+    print SVR "        save(svr.rng, file=\"$file_path$i/svr.rng\")\n";
+    print SVR "    }\n";
+    print SVR "    return(-svr.model\@cross)\n";
+    print SVR "}\n\n";
+
+    print SVR "# Genetic Algorithm Implementation\n";
+    print SVR "GAmodel <- ga(type=\"binary\",cost=cost,fitness=selection,nBits=features.total,popSize=population.size,suggestions=initpop,pcrossover=crossover.chance,pmutation=mutation.chance,elitism=base::max(1,round(population.size*elitism.rate)), maxiter=iter.max, run=run, keepBest=F, parallel=F,seed=$i)\n";
+    print SVR "time.stop <- proc.time()\n";
+    print SVR "print(time.stop - time.start)\n";
+    print SVR "print(\"minimum x validation error\")\n";
+    print SVR "print(cross.min)\n";
+    print SVR "print(\"minimum training error\")\n";
+    print SVR "print(error.min)\n";
+    print SVR "print(summary(GAmodel))\n";
+    print SVR "for (i in 1:length(svr.min)){\n";
+    print SVR "    print(svr.min[[i]])\n";
+    print SVR "    print(\"Cost\")\n";
+    print SVR "    print(svr.cost[i])\n";
+    print SVR "    print(\"RNG state\")\n";
+    print SVR "    print(svr.rng[[i]])\n";
+    print SVR "    print(\"Support Vectors\")\n";
+    print SVR "    print(svr.min[[i]]\@SVindex)\n";
+    print SVR "    print(\"Features Used\")\n";
+    print SVR "    print(as.numeric(gsub(\"X\",\"\",colnames(svr.min[[i]]\@xmatrix))))\n";
+    print SVR "    print(\"alpha.x\")\n";
+    print SVR "    print(as.numeric(svr.min[[i]]\@coef%*%svr.min[[i]]\@xmatrix))\n";
+    print SVR "    print(\"intercept/b\")\n";
+    print SVR "    print(svr.min[[i]]\@b)\n";
+    print SVR "}\n";
+    print SVR "save(svr.min, file=\"$file_path$i/svr.min\")\n";
+    print SVR "save(svr.rng, file=\"$file_path$i/svr.rng\")\n";
+    close(SVR);
+    system("chmod +x $file_path$i/$svr_name.R");
+}

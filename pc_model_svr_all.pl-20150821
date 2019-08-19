@@ -1,0 +1,343 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Author: Jonathan Jun Feng Chen
+# Description: Goes from scan files to calculate the overlap metric, tantimoto coefficent and the IC50 from a created model.
+
+# Change Log:
+# 07/28/2015: Added "foreach" loop to make min occurance=0 if feature appears les than # of compounds there are.  Makes overlap in line with Derick now.
+# 07/24/2015: Added line to remove HCdatabase_compiled and traning_scan after run.
+# 07/22/2015: Added reading mean and st. dev to undo scaling.
+# 03/10/2015: Removed TC output and spun it off to pc_tc.pl.  TC of entire PubChem taking too much space.
+# 11/22/2014: Split overlap output into overlap and tc output.
+# 11/11/2014: Rename output files to correspond to which output it is.  Added lines, progressively use models.
+# 11/05/2014: Delete commented TC and model for origianl usage (multivariate with output from Minitab and fotran). Reintroduced TC for later usage.
+# 08/20/2014: Commenting for clarity, commented out TC (not needed at time)
+# 07/29/2014: Initial modification for stricter overlap coefficent and model fitting R output
+# 04/18/2014: Modification from Derick's script to become this one
+
+# Based on :
+# Author:  Derick C. Weis
+# Last updated:  10/22/07
+# pc_desmatrix.pl
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+@ARGV == 1 or die "usage: ./scriptname core#";
+
+# Root path and final folder path
+my $root_path="/home/visco/jjc/AID_825/V2";
+my $folder_name="screening_10fold_logscale";
+#my $folder_name="debug";
+
+# St. dev and mean locations
+my $datafile_name="activity.log";
+my $mean_path="${root_path}/${datafile_name}_mean";
+my $sdev_path="${root_path}/${datafile_name}_sdev";
+
+# Directory containing all/the sdscan files.
+my $scan = "/home/visco/scripts_share/PubChem_Compound/scan0-2_files/bin$ARGV[0]/";
+#my $scan = "/home/visco/jjc/AID_825/V2/debug/";
+
+# Signature height
+my $start_height=0;
+my $end_height=2;
+my $height="$start_height-$end_height";
+
+# Cross validation option/folder
+my $cross_val="10fold";
+my $results_number="3";
+
+# Output file: Filtered results of the sdfscan files  
+my $stats_output="$root_path/$folder_name/${cross_val}_svr_stats_$ARGV[0]";
+my $prediction_output="$root_path/$folder_name/${cross_val}_svr_prediction_$ARGV[0]";
+my $overlap_output="$root_path/$folder_name/overlap_svr_$ARGV[0]";
+
+# Training path for PubChem to compare against
+my $training_path="$root_path/activity";
+
+# Model alpha.x/feature path/ for prediction/classification
+my $alpha_path="$root_path/$cross_val/svr_alpha.$results_number";
+my $feature_path="$root_path/$cross_val/svr_features.$results_number";
+my $intercept_path="$root_path/$cross_val/svr_intercept.$results_number";
+
+# Overlap metric minimum
+my $overlap_metric_1=0;
+my $overlap_metric_2=0.6;
+my $overlap_metric_3=0.7;
+my $overlap_metric_4=0.8;
+my $overlap_metric_5=0.9;
+my $overlap_metric_6=1;
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+my $count1=0;
+my $count_train=0;
+my $count_pred=0;
+my $train_sig_counter=0;
+my @x=0;
+my %database=();
+my %min_database=();
+my %max_database=();
+my @files;
+my %compound=();
+my $cid=0;
+#my $i=0;
+#my $j=0;
+#my $k=0;
+my $name;
+my $name_pred;
+my $name_train;
+my @files_pred;
+my $overlapcount=0;
+my $totalcount=0;
+my $overlap_metric;
+my %f=();
+my $IC50;
+my $filecount=0; #filecount of trainingset
+my @filehandle;
+my $prevhandle="kjbkjvjvmbjkfkjvj";
+my @overlap_array;
+my $model_counter;
+my @feature;
+my @alpha;
+my $feature_length;
+my $alpha_length;
+my @intercept;
+my $a=0;
+my $decision;
+my $model_length;
+my $sdev;
+my $mean;
+my @training_scan;
+my @HCdatabase_compiled;
+my %occurance_count;
+# Training Set information/data
+for my $i ($start_height..$end_height){
+    push(@training_scan,"$training_path/*.scan$i");
+    push(@HCdatabase_compiled,"$training_path/HCdatabase$i");
+}
+
+# copy PubChem signature database to compare against:
+system("cat @HCdatabase_compiled > HCdatabase_compiled$ARGV[0]");
+
+# compile scan file names into one file to read from.
+system("ls @training_scan > training_scan$ARGV[0]");
+
+# read in training database
+open(DATABASE,"HCdatabase_compiled$ARGV[0]") || die "\nCould not open HCdatabase_compiled$ARGV[0] for reading\n";
+while(my $line=<DATABASE>){
+    chomp($line);
+    substr($line,0,1,"") if (index($line,"1")==0);
+    next if ($line eq "");
+    $train_sig_counter++;
+    my @x=split(/\s/,$line);
+    $occurance_count{$x[0]}=0;
+    $database{$x[0]}=$train_sig_counter; # hash/key of database-assigns a number to a signature
+    $f{$train_sig_counter}=$x[0]; #hash/key of database-assigns a signature to a number
+    $min_database{$x[0]}=1000000000000;
+    $max_database{$x[0]}=0;
+}
+
+# count for overlap calculations later
+open(SCANLIST,"<training_scan$ARGV[0]");
+while(my $filename=<SCANLIST>){
+    my @filehandle = split(/\./,$filename);
+    if ($filehandle[0] eq $prevhandle){
+	open(CHEMBL,"<$filename")||die "could not open $filename";
+	while (my $line=<CHEMBL>){
+	    chomp($line);
+	    last if ($line eq "0.0 ");
+	    @x = split(/\s/,$line);
+	    $occurance_count{$x[1]}++;
+	    $min_database{$x[1]}=$x[0] if ($x[0] < $min_database{$x[1]});
+	    $max_database{$x[1]}=$x[0] if ($x[0] > $max_database{$x[1]});
+	}
+	close(CHEMBL);
+    }
+    else{
+	$a=0; #signature count for molecule
+	$filecount++; #counting files read in training set
+	open(CHEMBL,"<$filename")||die "could not open $filename";
+	while (my $line=<CHEMBL>){
+	    chomp($line);
+	    last if ($line eq "0.0 ");
+	    @x = split(/\s/,$line);
+	    $occurance_count{$x[1]}++;
+	    $min_database{$x[1]}=$x[0] if ($x[0] < $min_database{$x[1]});
+	    $max_database{$x[1]}=$x[0] if ($x[0] > $max_database{$x[1]});
+	}
+	close(CHEMBL);
+	$prevhandle=$filehandle[0];
+    }
+}
+my @sortedkeys = keys(%max_database); #collect keys of signatures
+@sortedkeys = sort(@sortedkeys); #sort keys of signatures
+foreach my $key (@sortedkeys){
+    $min_database{$key}=0 if ($occurance_count{$key}!=$filecount);
+    print "$key $min_database{$key} $max_database{$key}\n";
+}
+#die;
+
+# Open output file
+open(STATS_OUTPUT,">$stats_output");
+open(PREDICTION_OUTPUT,">$prediction_output");
+open(OVERLAP_OUTPUT,">$overlap_output");
+
+# Get features list and alpha.x list
+open(FEATURE,"<$feature_path")||die "Couldn't open $feature_path\n";
+@feature=<FEATURE>;
+close(FEATURE);
+chomp(@feature);
+open(ALPHA,"<$alpha_path")||die "Couldn't open $alpha_path\n";
+@alpha=<ALPHA>;
+close(ALPHA);
+chomp(@alpha);
+my $model_count=@alpha;
+open(INTERCEPT,"<$intercept_path")||die "Couldn't open $intercept_path\n";
+@intercept=<INTERCEPT>;
+close(INTERCEPT);
+chomp(@intercept);
+
+# Initialize overlap array
+for my $i(0..23){
+    for my $j(0..$model_count){
+	$overlap_array[$i][$j]=0;
+    }
+}
+
+# Get data mean and st. dev
+open(MEAN,"<$mean_path")||die "\n\nCould not open MEAN\n\n";
+open(SDEV,"<$sdev_path")||die "\n\nCould not open SDEV\n\n";
+$sdev=<SDEV>;
+$mean=<MEAN>;
+close(MEAN);
+close(SDEV);
+
+# Find the unique signatures occurrences in the sdfscan files.
+while ($name=<${scan}*${height}>) {
+    open(FILE,"$name") ||die "\nCould not open $name for reading.\n";
+  SIGNATURE:  while(<FILE>){
+      chomp($_);
+
+      #****************************
+      if($_ eq "" or $_ eq "\$\$\$\$"){
+	  next SIGNATURE;
+      #****************************	
+      } elsif($_ eq "0.0 "){
+	  my @sortedkeys = keys(%compound); #collect keys of signatures
+	  @sortedkeys = sort(@sortedkeys); #sort keys of signatures
+# first filter: overlap metric
+	  foreach my $key (@sortedkeys){
+	      $totalcount++; #total signature count for overlap metric
+	      if($database{$key}){
+		  if($compound{$key}<=$max_database{$key} && $compound{$key}>=$min_database{$key}){
+		      $overlapcount++; #overlapped signature count for overlap metric
+		  }
+	      }
+	  }
+	  $overlap_metric=$overlapcount/$totalcount;
+	  if($overlap_metric>=$overlap_metric_1){
+	      print OVERLAP_OUTPUT "#$cid";
+	      print PREDICTION_OUTPUT "#$cid";
+	      printf OVERLAP_OUTPUT " %.3f\n", $overlap_metric;
+
+# calculate predicted IC50\
+	      for my $j(0..$model_count){
+#		  next if ($i==$model_count);
+		  print PREDICTION_OUTPUT "\n" if ($j==$model_count);
+		  next if (!$feature[$j]);
+    		  my @model_feature=split(/\s+/,$feature[$j]);
+		  shift(@model_feature);
+		  $feature_length=@model_feature;
+		  my @model_alpha=split(/\s+/,$alpha[$j]);
+		  shift(@model_alpha);
+		  $alpha_length=@model_alpha;
+		  die "feature length n.e. alpha length" if ($feature_length!=$alpha_length);
+		  my @g=(0) x $feature_length; #initialization of values for IC50 calculation
+		  $model_counter=0;
+		  foreach my $feat (@model_feature){
+		      $g[$model_counter]=$compound{$f{$feat}} if ($compound{$f{$feat}});
+		      $model_counter++;
+		  }
+		  my $g_length=@g;
+		  die "g length n.e to alpha length" if ($g_length!=$alpha_length);
+		  my @products = map {$g[$_]*$model_alpha[$_]} 0..$alpha_length-1;
+		  my $sum=0;
+		  foreach my $num(@products){ 
+		      $sum = $sum + $num;
+		  }
+#		  $decision= $sum- $intercept[$j];
+		  $decision= ($sum- $intercept[$j])*$sdev+$mean;               
+		  print PREDICTION_OUTPUT " $decision";
+#		  print PREDICTION_OUTPUT "\n" if ($i==$model_count);
+		  $overlap_array[0][$j]++ if ($overlap_metric>$overlap_metric_1);
+		  $overlap_array[1][$j]++ if ($overlap_metric>$overlap_metric_2);
+		  $overlap_array[2][$j]++ if ($overlap_metric>$overlap_metric_3);
+		  $overlap_array[3][$j]++ if ($overlap_metric>$overlap_metric_4);
+		  $overlap_array[4][$j]++ if ($overlap_metric>$overlap_metric_5);
+		  $overlap_array[5][$j]++ if ($overlap_metric==$overlap_metric_6);
+		  $overlap_array[6][$j]++ if ($overlap_metric>$overlap_metric_1 && $decision>0);
+		  $overlap_array[7][$j]++ if ($overlap_metric>$overlap_metric_2 && $decision>0);
+		  $overlap_array[8][$j]++ if ($overlap_metric>$overlap_metric_3 && $decision>0);
+		  $overlap_array[9][$j]++ if ($overlap_metric>$overlap_metric_4 && $decision>0);
+		  $overlap_array[10][$j]++ if ($overlap_metric>$overlap_metric_5 && $decision>0);
+		  $overlap_array[11][$j]++ if ($overlap_metric==$overlap_metric_6 && $decision>0);
+		  $overlap_array[12][$j]++ if ($overlap_metric>$overlap_metric_1 && $decision>1);
+		  $overlap_array[13][$j]++ if ($overlap_metric>$overlap_metric_2 && $decision>1);
+		  $overlap_array[14][$j]++ if ($overlap_metric>$overlap_metric_3 && $decision>1);
+		  $overlap_array[15][$j]++ if ($overlap_metric>$overlap_metric_4 && $decision>1);
+		  $overlap_array[16][$j]++ if ($overlap_metric>$overlap_metric_5 && $decision>1);
+		  $overlap_array[17][$j]++ if ($overlap_metric==$overlap_metric_6 && $decision>1);
+		  $overlap_array[18][$j]++ if ($overlap_metric>$overlap_metric_1 && $decision>2);
+		  $overlap_array[19][$j]++ if ($overlap_metric>$overlap_metric_2 && $decision>2);
+		  $overlap_array[20][$j]++ if ($overlap_metric>$overlap_metric_3 && $decision>2);
+		  $overlap_array[21][$j]++ if ($overlap_metric>$overlap_metric_4 && $decision>2);
+		  $overlap_array[22][$j]++ if ($overlap_metric>$overlap_metric_5 && $decision>2);
+		  $overlap_array[23][$j]++ if ($overlap_metric==$overlap_metric_6 && $decision>2);
+	      }
+	  }
+	%compound = (); #after done, reset hash/key for next compound in scan file.
+	$cid = 0;
+	$overlapcount=0;
+	$totalcount=0;
+      #****************************
+  } else { #actual harvestin of scan/signature data starts here
+	@x = split(/\s/,$_);
+
+	if($x[0] eq "#"){
+	  $cid=$x[1];
+	  next SIGNATURE;
+	}
+
+	# Skip duplicates.
+	if($compound{$x[1]}){
+	  if($compound{$x[1]} ne $x[0]){
+	    next SIGNATURE;
+	  }
+	}
+	
+	$compound{$x[1]}=$x[0]; #assignment and creation of hash/keys here.
+  }
+
+  }
+  close(FILE);  
+}
+# print overlap array for stats analysis
+for my $i(0..23){
+    print STATS_OUTPUT "criterion$i"; 
+    for my $j(0..$model_count){
+        print STATS_OUTPUT "\n" if ($j==$model_count);
+	next if (!$feature[$j]);
+        print STATS_OUTPUT " $overlap_array[$i][$j]";
+    }
+}
+close(STATS_OUTPUT);
+close(OVERLAP_OUTPUT);
+close(PREDICTION_OUTPUT);
+print "\nOutput File:  $stats_output $prediction_output $overlap_output\n\n";
+
+# remove compiled database and training scan files
+system("rm HCdatabase_compiled$ARGV[0] training_scan$ARGV[0]")

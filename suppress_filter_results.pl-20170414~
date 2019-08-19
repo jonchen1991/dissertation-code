@@ -1,0 +1,57 @@
+#!/usr/bin/env perl;
+use strict;
+use warnings;
+my @svm_all=`grep "Best" raw_svm*`;
+my @svr_all=`grep "Best" raw_svr*`;
+my $svm_best=-1000;
+my $svr_best=-1000;
+my @svm;
+my @svr;
+my @data;
+my @seednumber;
+foreach my $line(@svm_all){
+    chomp($line);
+    @data=split(/\s+/,$line);
+    if ($svm_best gt $data[10]){
+	$svm_best=$data[10];
+	@seednumber=split(/:/,$data[0]);
+	@svm=[];
+	$svm[0]=$seednumber[0];
+    }elsif ($svm_best eq $data[10]){
+	if (index($seednumber[0],$data[0]) != -1){
+	    @seednumber=split(/:/,$data[0]);
+	    push(@svm,$seednumber[0]);
+	}
+    }
+}
+foreach my $line(@svr_all){
+    chomp($line);
+    @data=split(/\s+/,$line);
+    if ($svr_best gt $data[10]){
+        $svr_best=$data[10];
+        @seednumber=split(/:/,$data[0]);
+	@svr=[];
+        $svr[0]=$seednumber[0];
+    }elsif ($svr_best eq $data[10]){
+        if (index($seednumber[0],$data[0]) != -1){
+	    @seednumber=split(/:/,$data[0]);
+	    push(@svr,$seednumber[0]);
+	}
+    }
+}
+print "@svm\n";
+print "@svr\n";
+foreach (@svm){
+    my $line=$_;
+    ($line) = $line =~ /\.(\d*)/;
+    system("./suppress_messages.pl raw_svm.$line svm.$line");
+    system("./filter_results.pl svm $line");
+}
+foreach (@svr){
+    my $line=$_;
+    ($line) = $line =~ /\.(\d*)/;
+    system("./suppress_messages.pl raw_svr.$line svr.$line");
+    system("./filter_results.pl svr $line");
+}
+print "SVM Results : Best=$svm_best; seed#= @svm\n";
+print "SVR Results : Best=$svr_best; seed#= @svr\n";

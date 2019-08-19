@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+
+# Last updated:  09/29/07
+
+# Author:  Derick Weis
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Modified: 06/03/16 by Jonathan Jun Feng Chen
+# Changed directory and height to accept command line variables.
+@ARGV==2 || die "\n\n usage: ./perl-mol-convert-master path/to/directory height\n\n";
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Change the path here to give the directory of the mol files.
+# $name="/home/CAE/qsar/Tutorial/Tutorial_2.0/Mol_to_Sig/test/";
+$name="$ARGV[0]/";
+#$name="/home/visco/jjc/AID_410/activity/";
+
+# Define the Signature height.
+$height="$ARGV[1]";
+#$height="2";
+
+# Enter the database file name.
+$database="HCdatabase$height";
+
+# Enter the descriptor matrix file name.
+$desmatrix="HCdesmatrix$height";
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# The individual perl scripts for each step are stored here.
+$code_directory="/home/visco/Tutorial/Tutorial_2.0/Mol_to_Sig/Perl_Call/";
+
+# Step 1:  Detect aromatic bonds in the mol files.
+system("perl ${code_directory}perl-mol-convert-1 $name scan$height");
+
+# Step 2:  Convert the mol files to scan_h files.
+system("perl ${code_directory}perl-mol-convert-2 $name scan$height");
+
+# Step 3:  Clean the scan_h files for the Signature database creation.
+system("perl ${code_directory}perl-mol-convert-3 $name scan$height");
+
+# Step 4:  Create a database of all the unique Signatures.
+system("perl ${code_directory}perl-mol-convert-4 $name $database scan$height");
+
+# Step 5:  Create a descriptor matrix for all the compounds.
+system("perl ${code_directory}perl-mol-convert-5 $name $database scan$height $desmatrix $compund");
+
+# Step 6:  Create an integer descriptor matrix for all the compounds.
+system("perl ${code_directory}perl-mol-convert-6 $name $desmatrix");

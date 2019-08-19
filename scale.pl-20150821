@@ -1,0 +1,35 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# Last modified: 07/22/2015
+# Description: Gets mean and st. dev. used to scale response variables in R.
+
+@ARGV>=1||die "\n\n\nUSAGE: perl scale.pl <FILE CONTAINING RESPONSE DATA TO BE SCALED>\n\n\n";
+
+open(DATA,"<$ARGV[0]")||die "\n\n\nCould not open file $ARGV[0].\n\n\n";
+open(MEAN,">${ARGV[0]}_mean");
+open(SDEV,">${ARGV[0]}_sdev");
+
+my $value;
+my $mean_sum=0;
+my $sdev_sum=0;
+my $mean=0;
+my $sdev=0;
+my $length;
+
+my @data = <DATA>;
+chomp(@data);
+foreach $value (@data){
+    $mean_sum = $mean_sum + $value;
+}
+$length=@data;
+$mean = $mean_sum/$length;
+foreach $value (@data){
+    $sdev_sum = $sdev_sum + ($value - $mean)**2;
+}
+$sdev = ($sdev_sum / ($length - 1)) ** 0.5;
+print SDEV "$sdev";
+print MEAN "$mean";
+close(SDEV);
+close(MEAN);

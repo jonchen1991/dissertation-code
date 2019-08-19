@@ -1,0 +1,115 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+#open ROC_plot_all.R
+open(SCRIPT,">ROC_plot_all.R");
+print SCRIPT "#!/usr/bin/env Rscript\n\n";
+print SCRIPT "library(GA)\n";
+print SCRIPT "library(kernlab)\n";
+print SCRIPT "library(ROCR)\n\n";
+
+#get pwd path for sourcing
+my $path=`pwd`;
+my $dirname=`pwd|xargs basename`;
+chomp($path);
+chomp($dirname);
+print SCRIPT "# Read in data\n";
+print SCRIPT "height0 <- read.table(\"$path/trainingset/HCdesmatrix-int0\")\n";
+print SCRIPT "height1 <- read.table(\"$path/trainingset/HCdesmatrix-int1\")\n";
+print SCRIPT "height2 <- read.table(\"$path/trainingset/HCdesmatrix-int2\")\n";
+print SCRIPT "desmatrix.raw <- cbind(height0,height1,height2)\n";
+print SCRIPT "colnames(desmatrix.raw) <- seq(ncol(desmatrix.raw))\n";
+print SCRIPT "desmatrix <- as.matrix(desmatrix.raw)\n";
+print SCRIPT "response.raw <- read.table(\"$path/compound_class\")\n";
+print SCRIPT "response <- as.matrix(response.raw)\n";
+print SCRIPT "svm.all<-list()\n";
+my $fold=`ls -d *fold|grep -v "screening"`;
+chomp($fold);
+
+print SCRIPT "pdf(\"svm_ROC_$dirname.pdf\")\n";
+my @svm_min=`ls $fold/svm_alpha.*|grep -v "compiled"`;
+chomp(@svm_min);
+foreach my $svm(@svm_min){
+    $svm=~ s/$fold\/svm_alpha\.//;
+    print SCRIPT "load(\"$fold/jjc$svm/svm.min\")\n";
+    print SCRIPT "svm.all<-append(svm.all,svm.min)\n";
+}
+print SCRIPT "testmatrix<-desmatrix[,as.numeric(gsub(\"X\",\"\",colnames(svm.all[[1]]\@xmatrix[[1]])))]\n";
+print SCRIPT "response.pred<-predict(svm.all[[1]],testmatrix,type=\"decision\")\n";
+print SCRIPT "svm.ROC.pred<-list()\n";
+print SCRIPT "svm.ROC.pred[[1]]<-prediction(response.pred,response)\n";
+print SCRIPT "svm.ROC.perf<-list()\n";
+print SCRIPT "svm.ROC.perf[[1]]<-performance(svm.ROC.pred[[1]],measure=\"tpr\",x.measure=\"fpr\")\n";
+print SCRIPT "plot(svm.ROC.perf[[1]]\@x.values[[1]],svm.ROC.perf[[1]]\@y.values[[1]],type=\"l\",cex.axis=2,cex.lab=2,xlab=\"False positive rate\",ylab=\"True positive rate\")\n";
+print SCRIPT "if (length(svm.all)>1){\n";
+print SCRIPT "    for (i in 2:length(svm.all)){\n";
+print SCRIPT "        testmatrix<-desmatrix[,as.numeric(gsub(\"X\",\"\",colnames(svm.all[[i]]\@xmatrix[[1]])))]\n";
+print SCRIPT "        response.pred=predict(svm.all[[i]],testmatrix,type=\"decision\")\n";
+print SCRIPT "        svm.ROC.pred[[i]]<-prediction(response.pred,response)\n";
+print SCRIPT "        svm.ROC.perf[[i]]<-performance(svm.ROC.pred[[i]],measure=\"tpr\",x.measure=\"fpr\")\n";
+print SCRIPT "        lines(svm.ROC.perf[[i]]\@x.values[[1]],svm.ROC.perf[[i]]\@y.values[[1]],type=\"l\")\n";
+print SCRIPT "    }\n";
+print SCRIPT "}\n";
+print SCRIPT "save(svm.ROC.pred,file=\"svm.ROC.pred\")\n";
+print SCRIPT "save(svm.ROC.perf,file=\"svm.ROC.perf\")\n";
+
+print SCRIPT "dev.off()\n\n";
+
+my $signature;
+my $counter=0;
+my %sig_lib;
+my @sig_index;
+
+my @training_sig=`cat trainingset/HCdatabase*`;
+chomp(@training_sig);
+foreach $signature(@training_sig){
+    $signature =~ s/1\[/\[/;
+    next if ($signature eq "1");
+    $counter++;
+    $sig_lib{$signature}=$counter;
+}
+
+my @activity_sig=`cat activity/HCdatabase*`;
+chomp(@activity_sig);
+foreach $signature(@activity_sig){
+    $signature =~ s/1\[/\[/;
+    next if ($signature eq "1");
+    push(@sig_index,$sig_lib{$signature});
+}
+$counter=@sig_index;
+my $mean=`cat *_mean`;
+my $sdev=`cat *_sdev`;
+print SCRIPT "desmatrix <- desmatrix[,scan(text=\"@sig_index\")]\n";
+
+print SCRIPT "pdf(\"svr_ROC_$dirname.pdf\")\n";
+print SCRIPT "svr.all<-list()\n";
+my @svr_min=`ls $fold/svr_alpha.*|grep -v "compiled"`;
+chomp(@svr_min);
+foreach my $svr(@svr_min){
+    $svr=~ s/$fold\/svr_alpha\.//;
+    print SCRIPT "load(\"$fold/jjc$svr/svr.min\")\n";
+    print SCRIPT "svr.all<-append(svr.all,svr.min)\n";
+}
+print SCRIPT "testmatrix<-desmatrix[,as.numeric(gsub(\"X\",\"\",colnames(svr.all[[1]]\@xmatrix)))]\n";
+print SCRIPT "response.pred<-predict(svr.all[[1]],testmatrix,type=\"response\")\n";
+print SCRIPT "svr.ROC.pred<-list()\n";
+print SCRIPT "svr.ROC.pred[[1]]<-prediction(10^(response.pred*$sdev+$mean),response)\n";
+print SCRIPT "svr.ROC.perf<-list()\n";
+print SCRIPT "svr.ROC.perf[[1]]<-performance(svr.ROC.pred[[1]],measure=\"tpr\",x.measure=\"fpr\")\n";
+print SCRIPT "plot(svr.ROC.perf[[1]]\@x.values[[1]],svr.ROC.perf[[1]]\@y.values[[1]],type=\"l\",cex.axis=2,cex.lab=2,xlab=\"False positive rate\",ylab=\"True positive rate\")\n";
+print SCRIPT "if (length(svr.all)>1){\n";
+print SCRIPT "    for (i in 2:length(svr.all)){\n";
+print SCRIPT "        testmatrix<-desmatrix[,as.numeric(gsub(\"X\",\"\",colnames(svr.all[[i]]\@xmatrix)))]\n";
+print SCRIPT "        response.pred=predict(svr.all[[i]],testmatrix,type=\"response\")\n";
+print SCRIPT "        svr.ROC.pred[[i]]<-prediction(10^(response.pred*$sdev+$mean),response)\n";
+print SCRIPT "        svr.ROC.perf[[i]]<-performance(svr.ROC.pred[[i]],measure=\"tpr\",x.measure=\"fpr\")\n";
+print SCRIPT "        lines(svr.ROC.perf[[i]]\@x.values[[1]],svr.ROC.perf[[i]]\@y.values[[1]],type=\"l\")\n";
+print SCRIPT "    }\n";
+print SCRIPT "}\n";
+print SCRIPT "save(svr.ROC.pred,file=\"svr.ROC.pred\")\n";
+print SCRIPT "save(svr.ROC.perf,file=\"svr.ROC.perf\")\n";
+print SCRIPT "dev.off()\n";
+
+close(SCRIPT);
+system("chmod +x ROC_plot_all.R");

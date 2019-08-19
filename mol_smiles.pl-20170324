@@ -1,0 +1,35 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use File::Basename;
+
+my @sdf=`ls -d *actives*|grep -v "cid"|grep -v "smiles"`;
+chomp(@sdf);
+my @mol;
+my $file;
+my $smiles;
+
+foreach my $sdf (@sdf){
+    open(CID,">$sdf.cid");
+    open(SMILES,">$sdf.smiles");
+    @mol=`ls $sdf/*.mol`;
+    chomp(@mol);
+    foreach my $mol (@mol){
+	$file = basename $mol;
+	$file =~ s/.mol//;
+	print CID "$file\n";
+	$smiles =`molconvert -Y smiles $mol`;
+	if ($smiles eq ""){
+	    $smiles="\n";
+	}
+	print SMILES "$smiles";
+#	print "$smiles";
+    }
+#    $sdf =~ s/.sdf//;
+#    $filename = basename $sdf;
+#    print "$sdf\n";
+#    system("molconvert smiles $sdf.sdf -o $filename.smiles");
+#    @mol=`ls $sdf/*.mol`;
+#    chomp(@mol);
+#    print "@mol";
+}

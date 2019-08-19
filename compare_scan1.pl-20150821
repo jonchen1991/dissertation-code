@@ -1,0 +1,17 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+open(DATA,"<admixture_data.mod")||die "Could not open admixture_data.mod.\n";
+
+my @x;
+my $bash_return;
+while(<DATA>){
+    chomp($_);
+    @x=split(/\,/,$_);
+    next if $x[3] =~ /\D/;
+    $bash_return=`diff /home/visco/jjc/admixture/trainingset/SRA_Training_Compounds/$x[2].scan1 /home/visco/jjc/admixture/trainingset/$x[3].scan1`;
+    print "$bash_return";
+}
+close(DATA);
+

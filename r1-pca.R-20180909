@@ -1,0 +1,16 @@
+#!/usr/bin/env Rscript
+
+# SVR portion
+desmatrix <- as.matrix(read.table("activity/HCdesmatrix-int1"))
+colnames(desmatrix) <- seq(1,ncol(desmatrix))
+#response <- log(as.matrix(read.table("activity.value")),base=10)
+
+# Find eigenvalues and vectors for PCA with covariance matrix
+eigen_results <- eigen(cov(desmatrix))
+eigenvalues <- eigen_results$values
+eigenvalues.identified <-which(eigenvalues>1)
+eigenvalues.filtered <- eigenvalues[eigenvalues.identified]
+loadings.filtered <- abs(eigen_results$vectors[,eigenvalues.identified]) %*% eigenvalues.filtered
+# Save most relevant SVM features
+svr.pca.features <-which(loadings.filtered>1)
+save(svr.pca.features, file="svr.pca.features")

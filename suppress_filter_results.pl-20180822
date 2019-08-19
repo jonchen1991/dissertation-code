@@ -1,0 +1,154 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+my @data;
+my $xflag=0;
+my $tflag=0;
+my $xmin=1000;
+my $tmin=1000;
+my @svm_seed=();
+my @svr_seed=();
+
+my @svm_all=`grep "minimum x" -A 3 raw_svm*`;
+my @svr_all=`grep "minimum x" -A 3 raw_svr*`;
+
+open(SVM,">raw_svm.list");
+foreach my $line (@svm_all){
+    chomp($line);
+    next if ($line eq "--");
+    @data=split(/\[1\]\s/,$line);
+    if ($xflag==1){
+	print SVM "$data[1] ";
+	$xflag=0;
+	next;
+    }
+    if ($data[1] eq "\"minimum x validation error\""){
+	my @stringparse=split(/[\.:]/,$data[0]);
+	print SVM "$stringparse[1] ";
+	$xflag=1;
+	next;
+    }
+    if ($tflag==1){
+	print SVM "$data[1]\n";
+	$tflag=0;
+	next;
+    }
+    if ($data[1] eq "\"minimum training error\""){
+	$tflag=1;
+	next;
+    }
+}
+close(SVM);
+
+open(SVR,">raw_svr.list");
+foreach my $line (@svr_all){
+    chomp($line);
+    next if ($line eq "--");
+    @data=split(/\[1\]\s/,$line);
+    if ($xflag==1){
+        print SVR "$data[1] ";
+        $xflag=0;
+        next;
+    }
+    if ($data[1] eq "\"minimum x validation error\""){
+        my @stringparse=split(/[\.:]/,$data[0]);
+	print SVR "$stringparse[1] ";
+        $xflag=1;
+        next;
+    }
+    if ($tflag==1){
+        print SVR "$data[1]\n";
+        $tflag=0;
+        next;
+    }
+    if ($data[1] eq "\"minimum training error\""){
+        $tflag=1;
+        next;
+    }
+}
+close(SVR);
+
+open(SVM,"<raw_svm.list");
+while(<SVM>){
+    @data=split(/\s/,$_);
+    $data[1]=$data[1]*1;
+    $data[2]=$data[2]*1;
+    next if ($data[1] gt $xmin);
+    if ($data[1] eq $xmin){
+	next if ($data[2] gt $tmin);
+	if ($data[2] eq $tmin){
+	    push(@svm_seed,$data[0]);
+	    next;
+	}
+	if ($data[2] lt $tmin){
+	    @svm_seed=();
+	    push(@svm_seed,$data[0]);
+	    $tmin=$data[2];
+	    next;
+	}
+    }
+    if ($data[1] lt $xmin){
+	@svm_seed=();
+	push(@svm_seed,$data[0]);
+	$xmin=$data[1];
+	$tmin=$data[2];
+	next;
+    }
+}
+close(SVM);
+print "Min X-Val Err: $xmin\n";
+print "Min Train Err: $tmin\n";
+print "SVM SEED: @svm_seed\n";
+
+$xmin=1000;
+$tmin=1000;
+
+open(SVR,"<raw_svr.list");
+while(<SVR>){
+    @data=split(/\s/,$_);
+    $data[1]=$data[1]*1;
+    $data[2]=$data[2]*1;
+    next if ($data[1] gt $xmin);
+    if ($data[1] eq $xmin){
+	next if ($data[2] gt $tmin);
+	if ($data[2] eq $tmin){
+	    push(@svr_seed,$data[0]);
+	    next;
+	}
+	if ($data[2] lt $tmin){
+	    @svr_seed=();
+	    push(@svr_seed,$data[0]);
+	    $tmin=$data[2];
+	    next;
+	}
+    }
+    if ($data[1] lt $xmin){
+	@svr_seed=();
+	push(@svr_seed,$data[0]);
+	$xmin=$data[1];
+	$tmin=$data[2];
+	next;
+    }
+}
+close(SVR);
+print "Min X-Val Err: $xmin\n";
+print "Min Train Err: $tmin\n";
+print "SVR SEED: @svr_seed\n";
+
+die if -e "svm_alpha.compiled";
+
+foreach my $line (@svm_seed){
+    system("./suppress_messages.pl raw_svm.$line svm.$line");
+    system("./filter_results.pl svm $line");
+    system("cat svm_alpha.$line >> svm_alpha.compiled");
+    system("cat svm_features.$line >> svm_features.compiled");
+    system("cat svm_intercept.$line >> svm_intercept.compiled");
+}
+foreach my $line (@svr_seed){
+    system("./suppress_messages.pl raw_svr.$line svr.$line");
+    system("./filter_results.pl svr $line");
+    system("cat svr_alpha.$line >> svr_alpha.compiled");
+    system("cat svr_features.$line >> svr_features.compiled");
+    system("cat svr_intercept.$line >> svr_intercept.compiled");
+}

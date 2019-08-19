@@ -1,0 +1,10 @@
+#!/usr/bin/env Rscript
+
+# Read activity.value
+activity.value<-read.table("activity.value")
+
+# Log values
+activity.log<-as.matrix(log(activity.value,base=10))
+
+# Save as values
+write.table(activity.log,file="activity.log",row.names=F,col.names=F)

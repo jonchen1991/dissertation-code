@@ -1,0 +1,73 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# Author: Jonathan Jun Feng Chen
+# Description: Processes screening results for overlap =1 results.  Actives only because the actives are a subset of the trainingset.
+
+# Changelog:
+# 08/10/2015: Added $results_directory variable to direct where to look for and process files.
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+my $fold="15fold";
+my $results_directory="/home/visco/jjc/AID_825/V2/screening_${fold}_logscale";
+my $overlap_path=$results_directory;
+my $svr_path=$results_directory;
+#my $overlap_path="/home/visco/jjc/AID_825/V2/screening_${fold}_logscale";
+my $svm_path="/home/visco/jjc/AID_825/V2/screening_${fold}_scale";
+#my $svr_path="/home/visco/jjc/AID_825/V2/screening_${fold}_logscale";
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+my @overlap;
+my @svr;
+my @svm;
+
+for my $i (0..30){
+    push(@overlap,"$overlap_path/overlap_svr_$i");
+    push(@svm,"$svm_path/${fold}_svm_prediction_$i");
+    push(@svr,"$results_directory/${fold}_svr_prediction_$i");
+}
+open(SVR_OUTPUT,">$results_directory/filtered_svr");
+open(SVM_OUTPUT,">$results_directory/filtered_svm");
+my $filter="1.000";
+my @x;
+my %cid;
+print "Reading overlap files now...\n";
+foreach my $file (@overlap){
+    open(OVERLAP,"<$file")||die "\nCouldn't open $file\n";
+    while (<OVERLAP>){
+	chomp($_);
+	if (index($_,$filter) != -1){
+	    @x=split(/\s/,$_);
+	    $cid{$x[0]}=$x[1];
+	}
+    }
+    close(OVERLAP);
+}
+print "Filtering svr files now...\n";
+foreach my $file (@svr){
+    open(SVR,"<$file")||die "\nCouldn't open $file\n";
+    while (<SVR>){
+	chomp($_);
+	@x=split(/\s/,$_);
+	if ($cid{$x[0]}){
+	    print SVR_OUTPUT "$_\n";
+	}
+    }
+    close(SVR);
+}
+close(SVR_OUTPUT);
+print "Filtering svm files now...\n";
+foreach my $file (@svm){
+    open(SVM,"<$file")||die "\nCouldn't open $file\n";
+    while(<SVM>){
+	chomp($_);
+	@x=split(/\s/,$_);
+	if ($cid{$x[0]}){
+	    print SVM_OUTPUT "$_\n";
+	}
+    }
+    close(SVM);
+}
+close(SVM_OUTPUT);
